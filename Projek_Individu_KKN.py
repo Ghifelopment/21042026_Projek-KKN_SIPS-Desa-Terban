@@ -5,6 +5,8 @@ import os
 import base64
 import time
 from streamlit_cookies_manager import EncryptedCookieManager
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CONFIG & AUTH SETTINGS (Password dikunci di sini) ---
 PASSWORD_BENAR = "klitihandbandit"
@@ -297,10 +299,11 @@ if st.session_state.get("just_logged_in", False):
     st.session_state.just_logged_in = False  # reset agar tidak animasi terus
 
 # --- 6. DATABASE SETUP & HARGA ---
-DB_FILE = "data_sampah_terban.csv"
 MASTER_FILE = "master_sampah.csv"
+SHEET_URL = "https://docs.google.com/spreadsheets/d/1HMb1NVh8uWgtuUtdrO_s_MNhc14jbYFqTdBOalyYKms"
+SHEET_NAME = "Sheet1"
 
-# Harga & jenis default (dipakai pertama kali jika master_sampah.csv belum ada)
+# Harga & jenis default
 HARGA_ANORGANIK_DEFAULT = {
     "Botol PET Bening": 3000, "Botol PET Warna": 1500, "Plastik Keras (Ember/Kursi)": 2250,
     "Plastik Kresek/LDPE": 1750, "Gelas Plastik": 4500, "Kardus": 2000,
@@ -310,8 +313,55 @@ HARGA_ANORGANIK_DEFAULT = {
 JENIS_ORGANIK_DEFAULT = ["Sisa Makanan", "Daun Kering", "Sisa Buah", "Sisa Sayuran"]
 JENIS_B3_DEFAULT = ["Baterai Bekas", "Lampu Neon", "Limbah Medis"]
 
+COLS_URUTAN = ["Nomor", "Waktu Setoran", "Nama", "Klasifikasi Sampah", "Jenis Sampah", "Berat (Kg)", "Estimasi Saldo"]
+
+@st.cache_resource
+def get_gsheet_client():
+    """Koneksi ke Google Sheets — di-cache permanen, tidak dibuat ulang setiap rerun."""
+    scopes = ["https://www.googleapis.com/auth/spreadsheets",
+              "https://www.googleapis.com/auth/drive"]
+    try:
+        creds_dict = dict(st.secrets["gcp_service_account"])
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+    except:
+        creds = Credentials.from_service_account_file("service_account.json", scopes=scopes)
+    return gspread.authorize(creds)
+
+def get_worksheet():
+    """Ambil worksheet — pakai client yang sudah di-cache."""
+    client = get_gsheet_client()
+    sheet = client.open_by_url(SHEET_URL)
+    return sheet.worksheet(SHEET_NAME)
+
+@st.cache_data(ttl=30)
+def load_data():
+    """Load data dari Google Sheets. Cache 10 detik untuk hindari quota exceeded."""
+    try:
+        ws = get_worksheet()
+        data = ws.get_all_records()
+        if not data:
+            return pd.DataFrame(columns=COLS_URUTAN)
+        df = pd.DataFrame(data)
+        for col in COLS_URUTAN:
+            if col not in df.columns:
+                df[col] = ""
+        return df[COLS_URUTAN]
+    except Exception as e:
+        st.error(f"❌ Gagal load data dari Google Sheets: {e}")
+        return pd.DataFrame(columns=COLS_URUTAN)
+
+def save_data(df):
+    """Simpan seluruh dataframe ke Google Sheets (overwrite)."""
+    try:
+        ws = get_worksheet()
+        ws.clear()
+        ws.update([df.columns.tolist()] + df.values.tolist())
+        load_data.clear()  # clear cache supaya data langsung fresh
+    except Exception as e:
+        st.error(f"❌ Gagal simpan data ke Google Sheets: {e}")
+
 def load_master():
-    """Load data master dari CSV. Jika belum ada, buat dari default."""
+    """Load data master dari CSV lokal. Jika belum ada, buat dari default."""
     if os.path.exists(MASTER_FILE):
         try:
             return pd.read_csv(MASTER_FILE)
@@ -334,19 +384,6 @@ def get_harga_dict(df_m):
 
 def get_jenis_by_klasifikasi(df_m, klasifikasi):
     return df_m[df_m["Klasifikasi"] == klasifikasi]["Jenis"].tolist()
-
-COLS_URUTAN = ["Nomor", "Waktu Setoran", "Nama", "Klasifikasi Sampah", "Jenis Sampah", "Berat (Kg)", "Estimasi Saldo"]
-
-def load_data():
-    if os.path.exists(DB_FILE):
-        try:
-            df = pd.read_csv(DB_FILE)
-            if "Status" in df.columns:
-                df = df.drop(columns=["Status"])
-            return df[COLS_URUTAN]
-        except:
-            return pd.DataFrame(columns=COLS_URUTAN)
-    return pd.DataFrame(columns=COLS_URUTAN)
 
 # Load master
 df_master = load_master()
@@ -385,7 +422,7 @@ with st.sidebar:
             saldo_val = str(int(berat_kg * HARGA_ANORGANIK.get(jenis_final, 0))) if klasifikasi == "Anorganik" else "0"
 
             new_row = pd.DataFrame([[len(df_existing) + 1, waktu_setoran, nama_fix, klasifikasi, jenis_final, berat_kg, saldo_val]], columns=COLS_URUTAN)
-            pd.concat([df_existing, new_row], ignore_index=True).to_csv(DB_FILE, index=False)
+            save_data(pd.concat([df_existing, new_row], ignore_index=True))
             st.rerun()
 
 # --- 8. DASHBOARD UTAMA --- (TIDAK DIUBAH)
@@ -456,7 +493,7 @@ if not df.empty:
                     df.at[idx, "Jenis Sampah"] = jenis_ed
                     df.at[idx, "Berat (Kg)"] = round(b_ed, 2)
                     df.at[idx, "Estimasi Saldo"] = str(int(b_ed * HARGA_ANORGANIK.get(jenis_ed, 0))) if klas_ed == "Anorganik" else "0"
-                df.to_csv(DB_FILE, index=False)
+                save_data(df)
                 st.rerun()
 
 else:
@@ -587,8 +624,7 @@ with st.expander("🗂️ Kelola Data Master"):
                 st.caption("⬆️ Klik tombol di atas untuk download arsip CSV sekaligus mereset tabel.")
 
                 if st.button("🗑️ Reset Tabel Sekarang (tanpa download arsip)", key="btn_reset_langsung"):
-                    open(DB_FILE, "w").close()
-                    pd.DataFrame(columns=COLS_URUTAN).to_csv(DB_FILE, index=False)
+                    save_data(pd.DataFrame(columns=COLS_URUTAN))
                     st.success("✅ Tabel berhasil direset!")
                     st.rerun()
             else:
