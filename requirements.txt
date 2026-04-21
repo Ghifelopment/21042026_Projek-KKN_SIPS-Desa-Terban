@@ -1,3 +1,5 @@
 streamlit
 pandas
 streamlit-cookies-manager
+gspread
+google-auth
