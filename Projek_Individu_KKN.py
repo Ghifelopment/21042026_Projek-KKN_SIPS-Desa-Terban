@@ -278,6 +278,34 @@ st.markdown("""
         background-color: rgb(30, 35, 48) !important;
         border-color: rgba(250, 250, 250, 0.3) !important;
     }
+
+    /* === RESPONSIVE: penyesuaian tampilan untuk HP === */
+    @media (max-width: 768px) {
+        /* Judul utama lebih kecil di HP */
+        [data-testid="stAppViewContainer"] h1 {
+            font-size: 1.8rem !important;
+        }
+        /* Metric box font lebih kecil */
+        .metric-box h2 {
+            font-size: 1.2rem !important;
+        }
+        .metric-box h1 {
+            font-size: 1.5rem !important;
+        }
+        .metric-box h3 {
+            font-size: 0.9rem !important;
+        }
+        /* Sidebar lebih kecil */
+        [data-testid="stSidebar"] {
+            min-width: 200px !important;
+            max-width: 250px !important;
+        }
+        /* Padding lebih kecil */
+        .main .block-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+        }
+    }
     </style>
     """, unsafe_allow_html=True)
 
