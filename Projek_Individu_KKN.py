@@ -146,6 +146,20 @@ if 'animated' not in st.session_state:
                 line-height: 1.2;
                 margin-bottom: 25px;
             }}
+            @media (max-width: 768px) {{
+                .splash-logo {{
+                    font-size: 2rem !important;
+                    letter-spacing: 1px !important;
+                }}
+                .splash-loading {{
+                    font-size: 1rem !important;
+                    letter-spacing: 3px !important;
+                }}
+                #splash-screen {{
+                    background-size: cover !important;
+                    background-position: center center !important;
+                }}
+            }}
 
             .splash-loading {{
                 font-size: 1.4rem !important;
@@ -281,29 +295,54 @@ st.markdown("""
 
     /* === RESPONSIVE: penyesuaian tampilan untuk HP === */
     @media (max-width: 768px) {
-        /* Judul utama lebih kecil di HP */
+
+        /* 1. Background foto: center dan zoom out di semua page */
+        .stApp {
+            background-size: cover !important;
+            background-position: center center !important;
+            background-attachment: scroll !important;
+        }
+
+        /* 2. Judul Main Page lebih kecil */
         [data-testid="stAppViewContainer"] h1 {
             font-size: 1.8rem !important;
         }
-        /* Metric box font lebih kecil */
+
+        /* 3. Kotak Anorganik/Organik/B3 lebih compact */
+        .metric-box {
+            padding: 10px !important;
+        }
         .metric-box h2 {
-            font-size: 1.2rem !important;
+            font-size: 1.1rem !important;
+            margin: 4px 0 !important;
         }
         .metric-box h1 {
-            font-size: 1.5rem !important;
+            font-size: 1.3rem !important;
+            margin: 4px 0 !important;
         }
         .metric-box h3 {
-            font-size: 0.9rem !important;
+            font-size: 0.85rem !important;
+            margin: 4px 0 !important;
         }
-        /* Sidebar lebih kecil */
+
+        /* 4. Sidebar lebih kecil */
         [data-testid="stSidebar"] {
             min-width: 200px !important;
-            max-width: 250px !important;
+            max-width: 240px !important;
         }
-        /* Padding lebih kecil */
+
+        /* 5. Padding konten lebih kecil */
         .main .block-container {
-            padding-left: 1rem !important;
-            padding-right: 1rem !important;
+            padding-left: 0.8rem !important;
+            padding-right: 0.8rem !important;
+            padding-top: 1rem !important;
+        }
+
+        /* 6. Tombol Ekspor CSV dan Koreksi Data sejajar dan sama lebar */
+        [data-testid="stDownloadButton"] button,
+        [data-testid="stExpander"] details summary {
+            width: 100% !important;
+            font-size: 0.85rem !important;
         }
     }
     </style>
